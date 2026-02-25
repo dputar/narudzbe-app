@@ -33,7 +33,7 @@ if st.session_state.user is None:
         if st.button("Registriraj se", type="primary"):
             try:
                 supabase.auth.sign_up({"email": email, "password": password})
-                st.success("Registracija uspješna! Prijavi se.")
+                st.success("Registracija uspješna!")
             except Exception as e:
                 st.error(f"Greška: {e}")
 else:
@@ -51,36 +51,29 @@ else:
     with tab_pregled:
         st.subheader("Sve narudžbe")
 
-        # Filteri da se manje scrolla
-        col1, col2 = st.columns(2)
         response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
-            # Filteri
-            rep_filter = col1.multiselect("Filtriraj po reprezentaciji", options=sorted(df["reprezentacija"].dropna().unique()), default=[])
-            zaprimljeno_filter = col2.selectbox("Status zaprimanja", ["Svi", "Zaprimljeno", "Nije zaprimljeno"])
-
-            if rep_filter:
-                df = df[df["reprezentacija"].isin(rep_filter)]
-            if zaprimljeno_filter == "Zaprimljeno":
-                df = df[df["oznaci_zaprimljeno"] == True]
-            elif zaprimljeno_filter == "Nije zaprimljeno":
-                df = df[df["oznaci_zaprimljeno"] == False]
-
-            # Dodajemo checkbox za brisanje
             df["Za brisanje"] = False
 
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=750,                    # ← OVO SMANJUJE SCROLLANJE
+                height=800,   # veća tablica da manje scrollaš
                 column_config={
-                    "Za brisanje": st.column_config.CheckboxColumn("🗑️ Za brisanje", width="small"),
-                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu"),
-                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno"),
-                    "kolicina": st.column_config.NumberColumn("Količina", format="%.2f"),
+                    "Za brisanje": st.column_config.CheckboxColumn("🗑️", width="small"),
+                    "datum": st.column_config.DateColumn("Datum", format="DD.MM.YY", width=100),
+                    "datum_vrijeme_narudzbe": st.column_config.DatetimeColumn("Narudžba", format="DD.MM.YY HH:mm", width=130),
+                    "datum_vrijeme_zaprimanja": st.column_config.DatetimeColumn("Zaprimljeno", format="DD.MM.YY HH:mm", width=130),
+                    "kolicina": st.column_config.NumberColumn("Količina", format="%.2f", width=90),
+                    "sifra_proizvoda": st.column_config.TextColumn("Šifra", width=110),
+                    "naziv_proizvoda": st.column_config.TextColumn("Naziv proizvoda", width=280),
+                    "reprezentacija": st.column_config.TextColumn("Reprezentacija", width=140),
+                    "dobavljac": st.column_config.TextColumn("Dobavljač", width=160),
+                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
+                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
                 }
             )
 
@@ -93,13 +86,12 @@ else:
             if col_b.button("🗑️ Obriši označene redove", type="secondary"):
                 to_delete = edited_df[edited_df["Za brisanje"] == True]
                 if not to_delete.empty:
-                    ids_to_delete = to_delete["id"].tolist()
-                    for rid in ids_to_delete:
+                    for rid in to_delete["id"].tolist():
                         supabase.table("main_orders").delete().eq("id", rid).execute()
-                    st.success(f"Obrisano {len(ids_to_delete)} redova!")
+                    st.success(f"Obrisano {len(to_delete)} redova!")
                     st.rerun()
                 else:
-                    st.warning("Nisi označio nijedan red za brisanje.")
+                    st.warning("Nisi označio nijedan red.")
 
         else:
             st.info("Još nema narudžbi.")
