@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 from datetime import datetime
-from zoneinfo import ZoneInfo   # za ispravno vrijeme u Hrvatskoj
+from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Sustav narudžbi", layout="wide")
 
@@ -10,7 +10,7 @@ SUPABASE_URL = "https://vwekjvazuexwoglxqrtg.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3ZWtqdmF6dWV4d29nbHhxcnRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzMyOTcsImV4cCI6MjA4NzYwOTI5N30.59dWvEsXOE-IochSguKYSw_mDwFvEXHmHbCW7Gy_tto"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-TZ = ZoneInfo("Europe/Zagreb")   # ← ovo rješava +1 sat
+TZ = ZoneInfo("Europe/Zagreb")
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -60,10 +60,12 @@ else:
             df = df.fillna("")
             df.insert(0, "🗑️", False)
 
-            # Popravak vremenske zone
+            # === POPRAVAK VREMENSKE ZONE + FORMAT ===
             for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
                 if col in df.columns and not df[col].empty:
-                    df[col] = pd.to_datetime(df[col]).dt.tz_convert(TZ)
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].dt.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT')
+                    df[col] = df[col].dt.tz_convert(TZ)
 
             edited_df = st.data_editor(
                 df,
@@ -98,6 +100,8 @@ else:
                         supabase.table("main_orders").delete().eq("id", rid).execute()
                     st.success(f"Obrisano {len(to_delete)} redova!")
                     st.rerun()
+                else:
+                    st.warning("Nisi označio nijedan red.")
 
         else:
             st.info("Još nema narudžbi.")
