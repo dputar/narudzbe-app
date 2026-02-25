@@ -46,39 +46,71 @@ else:
 
     st.title("🛒 Sustav narudžbi")
 
-    tab1, tab2, tab3 = st.tabs(["📋 Pregled i uređivanje", "➕ Nova narudžba", "📤 Upload dobavljača"])
+    tab1, tab2 = st.tabs(["📋 Pregled i uređivanje", "➕ Nova narudžba"])
 
-    # ====================== TAB 3 - UPLOAD DOBAVLJAČA ======================
-    with tab3:
-        st.subheader("Upload liste dobavljača")
-        st.info("Excel ili CSV fajl mora imati stupce: **naziv**, **email** (ostalo opcionalno)")
+    with tab1:
+        st.subheader("Sve narudžbe")
 
-        uploaded_file = st.file_uploader("Odaberi Excel ili CSV fajl", type=["xlsx", "csv"])
+        if st.button("🔄 Osvježi tablicu"):
+            st.rerun()
 
-        if uploaded_file is not None:
-            if uploaded_file.name.endswith(".csv"):
-                df_upload = pd.read_csv(uploaded_file)
-            else:
-                df_upload = pd.read_excel(uploaded_file)
+        response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
+        df = pd.DataFrame(response.data or [])
 
-            st.dataframe(df_upload.head(), use_container_width=True)
+        if not df.empty:
+            df = df.fillna("")
+            df.insert(0, "🗑️ Za brisanje", False)
 
-            if st.button("💾 Uvezi dobavljače u bazu"):
+            edited_df = st.data_editor(
+                df,
+                hide_index=True,
+                use_container_width=True,
+                height=850,
+                column_config={
+                    "🗑️ Za brisanje": st.column_config.CheckboxColumn("🗑️", width=60),
+                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
+                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
+                }
+            )
+
+            col_a, col_b = st.columns([1, 4])
+            if col_a.button("💾 Spremi promjene", type="primary"):
+                # Samo dozvoljeni stupci - ovo rješava većinu grešaka
+                allowed = [
+                    "id", "datum", "korisnik", "reprezentacija", "odgovorna_osoba",
+                    "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
+                    "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
+                    "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
+                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"
+                ]
+                records = edited_df[allowed].copy()
+
+                # Čišćenje prije spremanja
+                records = records.where(pd.notnull(records), None)
+                records = records.to_dict(orient="records")
+
                 try:
-                    records = df_upload.to_dict(orient="records")
-                    supabase.table("dobavljaci").upsert(records, on_conflict="naziv").execute()
-                    st.success(f"✅ Uspješno dodano/ ažurirano {len(records)} dobavljača!")
+                    supabase.table("main_orders").upsert(records, on_conflict="id").execute()
+                    st.success("✅ Promjene spremljene!")
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Greška: {e}")
+                    st.error(f"Greška pri spremanju: {e}")
 
-    # ====================== TAB 2 - NOVA NARUDŽBA SA SEARCHABLE DROPDOWN ======================
+            if col_b.button("🗑️ Obriši označene redove", type="secondary"):
+                to_delete = edited_df[edited_df["🗑️ Za brisanje"] == True]
+                if not to_delete.empty:
+                    for rid in to_delete["id"].tolist():
+                        supabase.table("main_orders").delete().eq("id", rid).execute()
+                    st.success(f"Obrisano {len(to_delete)} redova!")
+                    st.rerun()
+                else:
+                    st.warning("Nisi označio nijedan red.")
+
+        else:
+            st.info("Još nema narudžbi.")
+
     with tab2:
         st.subheader("Nova narudžba")
-
-        # Dohvati sve dobavljače za dropdown
-        dob_response = supabase.table("dobavljaci").select("naziv, email").execute()
-        dobavljaci_list = pd.DataFrame(dob_response.data or [])
-
         with st.form("new_order_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             datum = col1.date_input("Datum", datetime.today())
@@ -90,26 +122,8 @@ else:
             sifra_proizvoda = col5.text_input("Šifra proizvoda")
 
             naziv_proizvoda = st.text_input("Naziv proizvoda")
-
-            # === SEARCHABLE DROPDOWN ZA DOBAVLJAČA ===
-            if not dobavljaci_list.empty:
-                dobavljac_izbor = st.selectbox(
-                    "Dobavljač (počni tipkati za pretragu)",
-                    options=[""] + list(dobavljaci_list["naziv"]),
-                    index=0
-                )
-            else:
-                dobavljac_izbor = st.text_input("Dobavljač (nema još u bazi)")
-
             kolicina = st.number_input("Količina", min_value=0.0, step=0.01, format="%.2f")
-
-            # Ako je odabran iz liste, automatski popuni email
-            email_dobavljaca = ""
-            if dobavljac_izbor and not dobavljaci_list.empty:
-                row = dobavljaci_list[dobavljaci_list["naziv"] == dobavljac_izbor]
-                if not row.empty:
-                    email_dobavljaca = row.iloc[0]["email"]
-                    st.info(f"Email dobavljača: {email_dobavljaca or 'nije upisan'}")
+            dobavljac = st.text_input("Dobavljač")
 
             col6, col7 = st.columns(2)
             oznaci_za_narudzbu = col6.checkbox("Označi za narudžbu")
@@ -128,7 +142,7 @@ else:
                     "sifra_proizvoda": sifra_proizvoda,
                     "naziv_proizvoda": naziv_proizvoda,
                     "kolicina": kolicina,
-                    "dobavljac": dobavljac_izbor,
+                    "dobavljac": dobavljac,
                     "oznaci_za_narudzbu": oznaci_za_narudzbu,
                     "broj_narudzbe": broj_narudzbe,
                     "napomena_dobavljac": napomena_dobavljac,
@@ -139,12 +153,3 @@ else:
                 supabase.table("main_orders").insert(new_row).execute()
                 st.success("Narudžba dodana! ✅")
                 st.rerun()
-
-    with tab1:
-        st.subheader("Sve narudžbe")
-        # ... (možeš ostaviti staru tablicu ili je kasnije poboljšati)
-        if st.button("🔄 Osvježi"):
-            st.rerun()
-        response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
-        df = pd.DataFrame(response.data or [])
-        st.dataframe(df, use_container_width=True, height=700)
