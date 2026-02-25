@@ -51,17 +51,15 @@ else:
     with tab1:
         st.subheader("Sve narudžbe")
 
+        if st.button("🔄 Osvježi tablicu"):
+            st.rerun()
+
         response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
             df = df.fillna("")
             df.insert(0, "🗑️ Za brisanje", False)
-
-            # Čišćenje datuma za prikaz
-            for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d.%m.%y %H:%M')
 
             edited_df = st.data_editor(
                 df,
@@ -72,19 +70,20 @@ else:
                     "🗑️ Za brisanje": st.column_config.CheckboxColumn("🗑️", width=60),
                     "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
                     "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
-                    "kolicina": st.column_config.NumberColumn("Količina", format="%.2f", width=90),
-                    "datum": st.column_config.TextColumn("Datum", width=100),
-                    "datum_vrijeme_narudzbe": st.column_config.TextColumn("Narudžba", width=130),
-                    "datum_vrijeme_zaprimanja": st.column_config.TextColumn("Zaprimljeno", width=130),
                 }
             )
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
-                # Čišćenje prije spremanja
                 records = edited_df.drop(columns=["🗑️ Za brisanje"]).copy()
-                records = records.where(pd.notnull(records), None)
-                records = records.to_dict(orient="records")
+
+                # === KRITIČNO: sve datume pretvaramo u ispravan ISO format ===
+                for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
+                    if col in records.columns:
+                        records[col] = pd.to_datetime(records[col], errors='coerce')
+                        records[col] = records[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                records = records.where(pd.notnull(records), None).to_dict(orient="records")
 
                 try:
                     supabase.table("main_orders").upsert(records, on_conflict="id").execute()
