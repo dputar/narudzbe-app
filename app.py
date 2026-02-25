@@ -75,15 +75,19 @@ else:
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
-                records = edited_df.drop(columns=["🗑️ Za brisanje"]).copy()
+                # === VAŽNO: šaljemo samo dopuštene stupce ===
+                allowed_columns = [
+                    "id", "datum", "korisnik", "reprezentacija", "odgovorna_osoba", 
+                    "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
+                    "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
+                    "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
+                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"
+                ]
+                records = edited_df.drop(columns=["🗑️ Za brisanje"])[allowed_columns].copy()
 
-                # === KRITIČNO: sve datume pretvaramo u ispravan ISO format ===
-                for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
-                    if col in records.columns:
-                        records[col] = pd.to_datetime(records[col], errors='coerce')
-                        records[col] = records[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                records = records.where(pd.notnull(records), None).to_dict(orient="records")
+                # Čišćenje za Supabase
+                records = records.where(pd.notnull(records), None)
+                records = records.to_dict(orient="records")
 
                 try:
                     supabase.table("main_orders").upsert(records, on_conflict="id").execute()
