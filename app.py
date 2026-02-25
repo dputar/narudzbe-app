@@ -51,64 +51,36 @@ else:
     with tab_pregled:
         st.subheader("Sve narudžbe")
 
-        # Selektiramo samo potrebne stupce + čišćenje
-        response = supabase.table("main_orders").select("""
-            id, datum, korisnik, reprezentacija, odgovorna_osoba, sifra_proizvoda, 
-            naziv_proizvoda, kolicina, dobavljac, oznaci_za_narudzbu, broj_narudzbe, 
-            oznaci_zaprimljeno, napomena_dobavljac, datum_vrijeme_narudzbe, 
-            unio_korisnik, napomena_za_nas, datum_vrijeme_zaprimanja
-        """).order("datum", desc=True).execute()
-
+        response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
-            # ČIŠĆENJE - ovo rješava grešku
-            df = df.copy()
-            df["Za brisanje"] = False
-
-            # Pretvaramo datume u ispravan format
-            for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors="coerce")
-
-            # Napunimo prazne vrijednosti
-            df = df.fillna("")
+            df = df.fillna("")                     # ← ovo rješava većinu grešaka
+            df.insert(0, "🗑️ Za brisanje", False)   # kvačica za brisanje na početku
 
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=800,
-                column_config={
-                    "Za brisanje": st.column_config.CheckboxColumn("🗑️", width="small"),
-                    "datum": st.column_config.DateColumn("Datum", format="DD.MM.YY", width=100),
-                    "datum_vrijeme_narudzbe": st.column_config.DatetimeColumn("Narudžba", format="DD.MM.YY HH:mm", width=130),
-                    "datum_vrijeme_zaprimanja": st.column_config.DatetimeColumn("Zaprimljeno", format="DD.MM.YY HH:mm", width=130),
-                    "kolicina": st.column_config.NumberColumn("Količina", format="%.2f", width=90),
-                    "sifra_proizvoda": st.column_config.TextColumn("Šifra", width=110),
-                    "naziv_proizvoda": st.column_config.TextColumn("Naziv proizvoda", width=280),
-                    "reprezentacija": st.column_config.TextColumn("Reprezentacija", width=140),
-                    "dobavljac": st.column_config.TextColumn("Dobavljač", width=160),
-                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
-                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
-                }
+                height=850,
+                num_rows="dynamic"
             )
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
-                records = edited_df.drop(columns=["Za brisanje"]).to_dict(orient="records")
+                records = edited_df.drop(columns=["🗑️ Za brisanje"]).to_dict(orient="records")
                 supabase.table("main_orders").upsert(records, on_conflict="id").execute()
                 st.success("Promjene spremljene!")
 
             if col_b.button("🗑️ Obriši označene redove", type="secondary"):
-                to_delete = edited_df[edited_df["Za brisanje"] == True]
+                to_delete = edited_df[edited_df["🗑️ Za brisanje"] == True]
                 if not to_delete.empty:
                     for rid in to_delete["id"].tolist():
                         supabase.table("main_orders").delete().eq("id", rid).execute()
                     st.success(f"Obrisano {len(to_delete)} redova!")
                     st.rerun()
                 else:
-                    st.warning("Nisi označio nijedan red za brisanje.")
+                    st.warning("Nisi označio nijedan red.")
 
         else:
             st.info("Još nema narudžbi.")
