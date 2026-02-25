@@ -56,25 +56,34 @@ else:
 
         if not df.empty:
             df = df.fillna("")
-            df.insert(0, "🗑️ Za brisanje", False)   # checkbox na početku
-
-            # Pretvaramo datum/vrijeme u string da izbjegnemo greške
-            for col in ["datum", "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d.%m.%y %H:%M')
+            df.insert(0, "🗑️ Za brisanje", False)
 
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=900   # još veća tablica
+                height=900
             )
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
-                records = edited_df.drop(columns=["🗑️ Za brisanje"]).to_dict(orient="records")
+                # === KRITIČNO ČIŠĆENJE PRIJE SPREMANJA ===
+                records = edited_df.drop(columns=["🗑️ Za brisanje"]).copy()
+
+                # Pretvaramo sve datetime u string (Supabase voli ovaj format)
+                for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
+                    if col in records.columns:
+                        records[col] = pd.to_datetime(records[col], errors='coerce')
+                        records[col] = records[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                # NaN → None (Supabase to voli)
+                records = records.where(pd.notnull(records), None)
+
+                records = records.to_dict(orient="records")
+
                 supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                st.success("Promjene spremljene!")
+                st.success("✅ Promjene spremljene!")
+                st.rerun()
 
             if col_b.button("🗑️ Obriši označene redove", type="secondary"):
                 to_delete = edited_df[edited_df["🗑️ Za brisanje"] == True]
