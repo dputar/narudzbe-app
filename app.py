@@ -46,59 +46,27 @@ else:
 
     st.title("🛒 Sustav narudžbi")
 
-    tab_pregled, tab_nova = st.tabs(["📋 Pregled i uređivanje", "➕ Nova narudžba"])
+    tab1, tab2 = st.tabs(["📋 Pregled narudžbi", "➕ Nova narudžba"])
 
-    with tab_pregled:
+    with tab1:
         st.subheader("Sve narudžbe")
-
         response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
-            df = df.fillna("")
-            df.insert(0, "🗑️ Za brisanje", False)
+            # Format za prikaz (da se ne mora scrollati previše)
+            for col in ["datum", "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d.%m.%y %H:%M')
 
-            edited_df = st.data_editor(
-                df,
-                hide_index=True,
-                use_container_width=True,
-                height=900
-            )
+            st.dataframe(df, use_container_width=True, height=750)
 
-            col_a, col_b = st.columns([1, 4])
-            if col_a.button("💾 Spremi promjene", type="primary"):
-                # === KRITIČNO ČIŠĆENJE PRIJE SPREMANJA ===
-                records = edited_df.drop(columns=["🗑️ Za brisanje"]).copy()
-
-                # Pretvaramo sve datetime u string (Supabase voli ovaj format)
-                for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
-                    if col in records.columns:
-                        records[col] = pd.to_datetime(records[col], errors='coerce')
-                        records[col] = records[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                # NaN → None (Supabase to voli)
-                records = records.where(pd.notnull(records), None)
-
-                records = records.to_dict(orient="records")
-
-                supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                st.success("✅ Promjene spremljene!")
-                st.rerun()
-
-            if col_b.button("🗑️ Obriši označene redove", type="secondary"):
-                to_delete = edited_df[edited_df["🗑️ Za brisanje"] == True]
-                if not to_delete.empty:
-                    for rid in to_delete["id"].tolist():
-                        supabase.table("main_orders").delete().eq("id", rid).execute()
-                    st.success(f"Obrisano {len(to_delete)} redova!")
-                    st.rerun()
-                else:
-                    st.warning("Nisi označio nijedan red.")
+            st.info("Za sada možete dodavati nove narudžbe u drugom tabu. Edit kvačica i brisanje dodajemo u sljedećoj verziji.")
 
         else:
             st.info("Još nema narudžbi.")
 
-    with tab_nova:
+    with tab2:
         st.subheader("Nova narudžba")
         with st.form("new_order_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
