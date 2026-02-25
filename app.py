@@ -55,13 +55,19 @@ else:
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
-            df["Za brisanje"] = False
+            # === POPRAVAK DATUMA (ovo rješava grešku) ===
+            for col in ['datum_vrijeme_narudzbe', 'datum_vrijeme_zaprimanja']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+
+            # Dodajemo kanticu za brisanje na početak
+            df.insert(0, "Za brisanje", False)
 
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=800,   # veća tablica da manje scrollaš
+                height=820,
                 column_config={
                     "Za brisanje": st.column_config.CheckboxColumn("🗑️", width="small"),
                     "datum": st.column_config.DateColumn("Datum", format="DD.MM.YY", width=100),
@@ -91,7 +97,7 @@ else:
                     st.success(f"Obrisano {len(to_delete)} redova!")
                     st.rerun()
                 else:
-                    st.warning("Nisi označio nijedan red.")
+                    st.warning("Nisi označio nijedan red za brisanje.")
 
         else:
             st.info("Još nema narudžbi.")
