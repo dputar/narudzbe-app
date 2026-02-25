@@ -60,11 +60,10 @@ else:
             df = df.fillna("")
             df.insert(0, "🗑️", False)
 
-            # === POPRAVAK VREMENSKE ZONE + FORMAT ===
+            # === KONAČNI POPRAVAK VREMENA (radi i za stare i nove podatke) ===
             for col in ["datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"]:
                 if col in df.columns and not df[col].empty:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-                    df[col] = df[col].dt.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT')
+                    df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
                     df[col] = df[col].dt.tz_convert(TZ)
 
             edited_df = st.data_editor(
