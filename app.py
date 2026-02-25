@@ -50,25 +50,57 @@ else:
 
     with tab_pregled:
         st.subheader("Sve narudžbe")
+
+        # Filteri da se manje scrolla
+        col1, col2 = st.columns(2)
         response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
         df = pd.DataFrame(response.data or [])
 
         if not df.empty:
+            # Filteri
+            rep_filter = col1.multiselect("Filtriraj po reprezentaciji", options=sorted(df["reprezentacija"].dropna().unique()), default=[])
+            zaprimljeno_filter = col2.selectbox("Status zaprimanja", ["Svi", "Zaprimljeno", "Nije zaprimljeno"])
+
+            if rep_filter:
+                df = df[df["reprezentacija"].isin(rep_filter)]
+            if zaprimljeno_filter == "Zaprimljeno":
+                df = df[df["oznaci_zaprimljeno"] == True]
+            elif zaprimljeno_filter == "Nije zaprimljeno":
+                df = df[df["oznaci_zaprimljeno"] == False]
+
+            # Dodajemo checkbox za brisanje
+            df["Za brisanje"] = False
+
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
+                height=750,                    # ← OVO SMANJUJE SCROLLANJE
                 column_config={
+                    "Za brisanje": st.column_config.CheckboxColumn("🗑️ Za brisanje", width="small"),
                     "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu"),
                     "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno"),
                     "kolicina": st.column_config.NumberColumn("Količina", format="%.2f"),
                 }
             )
-            if st.button("💾 Spremi promjene"):
-                records = edited_df.to_dict(orient="records")
+
+            col_a, col_b = st.columns([1, 4])
+            if col_a.button("💾 Spremi promjene", type="primary"):
+                records = edited_df.drop(columns=["Za brisanje"]).to_dict(orient="records")
                 supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                st.success("Spremljeno!")
-                st.rerun()
+                st.success("Promjene spremljene!")
+
+            if col_b.button("🗑️ Obriši označene redove", type="secondary"):
+                to_delete = edited_df[edited_df["Za brisanje"] == True]
+                if not to_delete.empty:
+                    ids_to_delete = to_delete["id"].tolist()
+                    for rid in ids_to_delete:
+                        supabase.table("main_orders").delete().eq("id", rid).execute()
+                    st.success(f"Obrisano {len(ids_to_delete)} redova!")
+                    st.rerun()
+                else:
+                    st.warning("Nisi označio nijedan red za brisanje.")
+
         else:
             st.info("Još nema narudžbi.")
 
