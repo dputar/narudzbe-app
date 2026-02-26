@@ -13,7 +13,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 TZ = ZoneInfo("Europe/Zagreb")
 
 # ────────────────────────────────────────────────
-#  SESSION STATE – čisti i siguran
+#  SESSION STATE
 # ────────────────────────────────────────────────
 
 if "narudzbe_proizvodi" not in st.session_state:
@@ -23,11 +23,11 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN (ako nije prijavljen)
+#  LOGIN
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
-    st.title("🛒 Prijava u sustav narudžbi")
+    st.title("Prijava u sustav narudžbi")
     tab1, tab2 = st.tabs(["Prijava", "Registracija"])
 
     with tab1:
@@ -53,7 +53,7 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 else:
     # ────────────────────────────────────────────────
-    #  GLAVNI SIDEBAR (vidljiv samo kad si prijavljen)
+    #  SIDEBAR
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  GLAVNI PRIKAZ – ovisno o stranici
+    #  PREGLED NARUDŽBI
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -86,11 +86,15 @@ else:
             df = df.fillna("")
             df.insert(0, "🗑️", False)
 
+            # Preimenuj stupac reprezentacija u Skladište
+            if "reprezentacija" in df.columns:
+                df = df.rename(columns={"reprezentacija": "Skladište"})
+
             edited_df = st.data_editor(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=750,
+                height=850,
                 column_config={
                     "🗑️": st.column_config.CheckboxColumn("🗑️", width=60),
                     "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
@@ -99,13 +103,13 @@ else:
             )
 
             col_a, col_b = st.columns([1, 4])
-            if col_a.button("💾 Spremi promjene"):
+            if col_a.button("💾 Spremi promjene", type="primary"):
                 allowed = [
-                    "id", "datum", "korisnik", "reprezentacija", "odgovorna_osoba",
+                    "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
                     "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
                     "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
                     "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
-                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"
+                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja", "cijena"
                 ]
                 records = edited_df[allowed].copy()
                 records = records.where(pd.notnull(records), None)
@@ -113,7 +117,7 @@ else:
 
                 try:
                     supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                    st.success("Spremljeno!")
+                    st.success("Promjene spremljene!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Greška: {e}")
@@ -129,6 +133,10 @@ else:
                     st.warning("Nisi označio nijedan red.")
         else:
             st.info("Još nema narudžbi.")
+
+    # ────────────────────────────────────────────────
+    #  NOVA NARUDŽBA – po slici
+    # ────────────────────────────────────────────────
 
     elif st.session_state.stranica == "nova":
         col_naslov, col_natrag = st.columns([5, 1])
@@ -167,7 +175,10 @@ else:
                 st.error("× Klijent")
 
             st.markdown("**Odgovorna osoba**")
-            odgovorna = st.selectbox("", ["Nema"], label_visibility="collapsed")
+            odgovorna_lista = ["Nema", "Osoba 1", "Osoba 2"]
+            odgovorna = st.selectbox("", odgovorna_lista, label_visibility="collapsed")
+            if odgovorna == "Nema":
+                odgovorna = st.text_input("Slobodan unos odgovorne osobe", "")
             st.success(f"✓ {odgovorna}")
 
             st.markdown("**Datum**")
@@ -188,19 +199,19 @@ else:
             else:
                 st.info("Još nema proizvoda.")
 
-            if st.button("➕ Dodaj proizvod"):
+            if st.button("➕ Dodaj proizvod", type="primary"):
                 with st.form("dodaj_proizvod", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra")
                     naziv = col2.text_input("Naziv *")
 
                     col3, col4 = st.columns(2)
-                    kol = col3.number_input("Količina *", min_value=0.01, step=0.01)
-                    cijena = col4.number_input("Cijena", min_value=0.0, step=0.01)
+                    kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f")
+                    cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f")
 
                     dobavljac = st.text_input("Dobavljač")
 
-                    submitted = st.form_submit_button("Dodaj")
+                    submitted = st.form_submit_button("Dodaj u narudžbu")
                     if submitted:
                         if naziv and kol > 0:
                             novi = {
@@ -232,7 +243,7 @@ else:
                 red = {
                     "datum": str(datum),
                     "korisnik": klijent or korisnik,
-                    "reprezentacija": skladiste,
+                    "Skladište": skladiste,
                     "tip_klijenta": tip_klijenta,
                     "odgovorna_osoba": odgovorna,
                     "sifra_proizvoda": proizvod["Šifra"],
