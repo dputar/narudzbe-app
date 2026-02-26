@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN – jedinstveni key-evi za svaki input
+#  LOGIN – sa jedinstvenim key-evima
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
@@ -31,9 +31,9 @@ if "user" not in st.session_state or st.session_state.user is None:
     tab1, tab2 = st.tabs(["Prijava", "Registracija"])
 
     with tab1:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Lozinka", type="password", key="login_password")
-        if st.button("Prijavi se", key="login_button"):
+        email = st.text_input("Email", key="login_email_input")
+        password = st.text_input("Lozinka", type="password", key="login_password_input")
+        if st.button("Prijavi se", key="login_prijavi_button"):
             try:
                 res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state.user = res.user
@@ -43,9 +43,9 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 
     with tab2:
-        email = st.text_input("Email", key="reg_email")
-        password = st.text_input("Lozinka", type="password", key="reg_password")
-        if st.button("Registriraj se", key="reg_button"):
+        email = st.text_input("Email", key="reg_email_input")
+        password = st.text_input("Lozinka", type="password", key="reg_password_input")
+        if st.button("Registriraj se", key="reg_registriraj_button"):
             try:
                 supabase.auth.sign_up({"email": email, "password": password})
                 st.success("Registracija OK – prijavi se")
@@ -53,7 +53,7 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 else:
     # ────────────────────────────────────────────────
-    #  SIDEBAR
+    #  SIDEBAR – sa jedinstvenim key-evima
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
