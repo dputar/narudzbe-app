@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – koristimo st.dataframe (bez data_editor za sada)
+    #  PREGLED NARUDŽBI – koristimo st.dataframe + čišćenje dupliciranih stupaca
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -88,6 +88,9 @@ else:
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
+
+            # Ukloni duplicirane stupce (ako ih ima) – uzimamo samo prvi pojavljeni
+            df = df.loc[:, ~df.columns.duplicated()]
 
             # Ukloni nepotrebne stupce iz prikaza
             columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
