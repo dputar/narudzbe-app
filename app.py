@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN – jedinstveni key-evi
+#  LOGIN
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
@@ -31,9 +31,9 @@ if "user" not in st.session_state or st.session_state.user is None:
     tab1, tab2 = st.tabs(["Prijava", "Registracija"])
 
     with tab1:
-        email = st.text_input("Email", key="login_email_input")
-        password = st.text_input("Lozinka", type="password", key="login_password_input")
-        if st.button("Prijavi se", key="login_prijavi_button"):
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Lozinka", type="password", key="login_password")
+        if st.button("Prijavi se", key="login_prijavi"):
             try:
                 res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state.user = res.user
@@ -43,9 +43,9 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 
     with tab2:
-        email = st.text_input("Email", key="reg_email_input")
-        password = st.text_input("Lozinka", type="password", key="reg_password_input")
-        if st.button("Registriraj se", key="reg_registriraj_button"):
+        email = st.text_input("Email", key="reg_email")
+        password = st.text_input("Lozinka", type="password", key="reg_password")
+        if st.button("Registriraj se", key="reg_registriraj"):
             try:
                 supabase.auth.sign_up({"email": email, "password": password})
                 st.success("Registracija OK – prijavi se")
@@ -53,7 +53,7 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 else:
     # ────────────────────────────────────────────────
-    #  SIDEBAR – jedinstveni key-evi
+    #  SIDEBAR
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – koristimo st.dataframe + čišćenje dupliciranih stupaca
+    #  PREGLED NARUDŽBI
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -84,15 +84,13 @@ else:
 
         if not df.empty:
             df = df.fillna("")
+            df.insert(0, "🗑️", False)
 
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
 
-            # Ukloni duplicirane stupce (ako ih ima) – uzimamo samo prvi pojavljeni
-            df = df.loc[:, ~df.columns.duplicated()]
-
-            # Ukloni nepotrebne stupce iz prikaza
+            # Ukloni nepotrebne stupce
             columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
 
             st.dataframe(
@@ -101,7 +99,7 @@ else:
                 height=750
             )
 
-            st.info("Za sada je pregled samo čitanje. Edit i brisanje dodajemo u sljedećem koraku.")
+            st.info("Za sada je pregled samo čitanje. Edit i brisanje dodajemo kasnije.")
         else:
             st.info("Još nema narudžbi.")
 
@@ -171,7 +169,7 @@ else:
                 st.info("Još nema proizvoda.")
 
             if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
-                with st.form("dodaj_proizvod", clear_on_submit=True):
+                with st.form("dodaj_proizvod_form", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra", key="dodaj_sifra")
                     naziv = col2.text_input("Naziv proizvoda *", key="dodaj_naziv")
