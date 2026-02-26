@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN – jedinstveni key-evi
+#  LOGIN – jedinstveni key-evi za svaki widget
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
