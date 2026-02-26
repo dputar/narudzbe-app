@@ -124,7 +124,7 @@ else:
                     st.success("Promjene spremljene!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Greška pri spremanju: {e}")
+                    st.error(f"Greška pri spremanju: {str(e)}")
 
             if col_b.button("🗑️ Obriši označene"):
                 to_delete = edited_df[edited_df["🗑️"] == True]
@@ -259,9 +259,14 @@ else:
                     "unio_korisnik": st.session_state.user.email,
                     "datum_vrijeme_narudzbe": datetime.now(TZ).isoformat(),
                 }
-                supabase.table("main_orders").insert(red).execute()
+                try:
+                    supabase.table("main_orders").insert(red).execute()
+                except Exception as e:
+                    st.error(f"Greška pri spremanju jednog reda: {str(e)}")
+                    break  # zaustavi petlju ako ima grešku
 
-            st.success("Narudžba spremljena! Svi proizvodi su zasebni redovi.")
-            st.session_state.narudzbe_proizvodi = []
-            st.session_state.stranica = "pregled"
-            st.rerun()
+            else:
+                st.success("Narudžba spremljena! Svi proizvodi su zasebni redovi.")
+                st.session_state.narudzbe_proizvodi = []
+                st.session_state.stranica = "pregled"
+                st.rerun()
