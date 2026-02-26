@@ -13,141 +13,187 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 TZ = ZoneInfo("Europe/Zagreb")
 
 # ────────────────────────────────────────────────
-#  SESSION STATE
+#  SESSION STATE – za proizvode u novoj narudžbi
 # ────────────────────────────────────────────────
 
 if "narudzbe_proizvodi" not in st.session_state:
     st.session_state.narudzbe_proizvodi = []
 
+if "trenutna_stranica" not in st.session_state:
+    st.session_state.trenutna_stranica = "pregled"
+
 # ────────────────────────────────────────────────
-#  GLAVNA STRANICA – Nova narudžba
+#  GLAVNI IZBORNIK (sidebar ili tabovi)
 # ────────────────────────────────────────────────
 
-col_naslov, col_natrag = st.columns([5, 1])
-with col_naslov:
-    st.title("Nova narudžba")
-
-with col_natrag:
-    if st.button("← Natrag na pregled"):
-        st.session_state.narudzbe_proizvodi = []
+if st.session_state.trenutna_stranica == "pregled":
+    st.sidebar.success(f"👤 {st.session_state.user.email} (Admin)" if "user" in st.session_state and st.session_state.user else "Nije prijavljen")
+    if st.sidebar.button("Odjavi se"):
+        st.session_state.user = None
+        st.session_state.trenutna_stranica = "login"
         st.rerun()
 
-# ────────────────────────────────────────────────
-#  LIJEVI DIO – podaci o narudžbi
-# ────────────────────────────────────────────────
+    st.title("🛒 Sustav narudžbi")
 
-col_lijevo, col_desno = st.columns([1, 2])
+    tab1, tab2 = st.tabs(["📋 Pregled narudžbi", "➕ Nova narudžba"])
 
-with col_lijevo:
-    st.markdown("**Korisnik**")
-    korisnik = st.selectbox("", ["Daniel Putar"], label_visibility="collapsed")
-    st.success(f"✓ {korisnik}")
+    with tab1:
+        st.subheader("Sve narudžbe")
+        if st.button("🔄 Osvježi"):
+            st.rerun()
 
-    st.markdown("**Skladište**")
-    skladiste = st.selectbox("", ["Osijek - Glavno skladište"], label_visibility="collapsed")
-    st.success(f"✓ {skladiste}")
+        response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
+        df = pd.DataFrame(response.data or [])
 
-    st.markdown("**Tip klijenta**")
-    tip_klijenta = st.selectbox("", ["", "Doznaka", "Narudžba", "Uzorak"], label_visibility="collapsed")
-    if tip_klijenta:
-        st.success(f"✓ {tip_klijenta}")
-    else:
-        st.error("× Tip klijenta")
+        if not df.empty:
+            df = df.fillna("")
+            df.insert(0, "🗑️", False)
 
-    st.markdown("**Klijent**")
-    klijent = st.text_input("", placeholder="Upiši ime ili odaberi iz padajućeg", label_visibility="collapsed")
-    if klijent:
-        st.success(f"✓ {klijent}")
-    else:
-        st.error("× Klijent")
+            edited_df = st.data_editor(
+                df,
+                hide_index=True,
+                use_container_width=True,
+                height=850,
+                column_config={
+                    "🗑️": st.column_config.CheckboxColumn("🗑️", width=60),
+                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
+                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
+                }
+            )
 
-    st.markdown("**Odgovorna osoba**")
-    odgovorna = st.selectbox("", ["Nema"], label_visibility="collapsed")
-    st.success(f"✓ {odgovorna}")
-
-    st.markdown("**Datum kada je odobren nalog**")
-    datum = st.date_input("", datetime.today(), label_visibility="collapsed")
-
-    st.markdown("**Napomena**")
-    napomena = st.text_area("", height=100, label_visibility="collapsed")
-
-# ────────────────────────────────────────────────
-#  DESNI DIO – tablica proizvoda + dodavanje
-# ────────────────────────────────────────────────
-
-with col_desno:
-    st.markdown("**Proizvodi**")
-
-    if st.session_state.narudzbe_proizvodi:
-        df = pd.DataFrame(st.session_state.narudzbe_proizvodi)
-        df["Ukupno"] = df["Kol."] * df["Cijena"]
-
-        edited = st.data_editor(
-            df,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Šifra": st.column_config.TextColumn("Šifra"),
-                "Naziv": st.column_config.TextColumn("Naziv"),
-                "Kol.": st.column_config.NumberColumn("Kol.", min_value=0.01, step=0.01),
-                "Cijena": st.column_config.NumberColumn("Cijena", format="%.2f"),
-                "Ukupno": st.column_config.NumberColumn("Ukupno", format="%.2f", disabled=True),
-                "Dobavljač": st.column_config.TextColumn("Dobavljač"),
-            }
-        )
-
-        ukupno = edited["Ukupno"].sum()
-        st.markdown(f"**UKUPNO: {ukupno:,.2f} EUR + PDV**")
-    else:
-        st.info("Još nema proizvoda.")
-
-    if st.button("➕ Dodaj proizvod", type="primary"):
-        with st.form("dodaj_proizvod_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            sifra = col1.text_input("Šifra")
-            naziv = col2.text_input("Naziv proizvoda *")
-
-            col3, col4 = st.columns(2)
-            kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f")
-            cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f")
-
-            dobavljac = st.text_input("Dobavljač")
-
-            submitted = st.form_submit_button("Dodaj u narudžbu")
-            if submitted:
-                if naziv and kol > 0:
-                    novi = {
-                        "Šifra": sifra,
-                        "Naziv": naziv,
-                        "Kol.": kol,
-                        "Cijena": cijena,
-                        "Ukupno": kol * cijena,
-                        "Dobavljač": dobavljac
-                    }
-                    st.session_state.narudzbe_proizvodi.append(novi)
+            col_a, col_b = st.columns([1, 4])
+            if col_a.button("💾 Spremi promjene", type="primary"):
+                allowed = [
+                    "id", "datum", "korisnik", "reprezentacija", "odgovorna_osoba",
+                    "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
+                    "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
+                    "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
+                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"
+                ]
+                records = edited_df[allowed].copy()
+                records = records.where(pd.notnull(records), None)
+                records = records.to_dict(orient="records")
+                try:
+                    supabase.table("main_orders").upsert(records, on_conflict="id").execute()
+                    st.success("Promjene spremljene!")
                     st.rerun()
-                else:
-                    st.error("Naziv i količina su obavezni!")
+                except Exception as e:
+                    st.error(f"Greška: {str(e)}")
 
-# ────────────────────────────────────────────────
-#  DONJI GUMBI – Spremi / Odustani
-# ────────────────────────────────────────────────
+            if col_b.button("🗑️ Obriši označene", type="secondary"):
+                to_delete = edited_df[edited_df["🗑️"] == True]
+                if not to_delete.empty:
+                    for rid in to_delete["id"].tolist():
+                        supabase.table("main_orders").delete().eq("id", rid).execute()
+                    st.success("Obrisano!")
+                    st.rerun()
+        else:
+            st.info("Još nema narudžbi.")
 
-col1, col2 = st.columns(2)
-if col1.button("Odustani", type="secondary"):
-    st.session_state.narudzbe_proizvodi = []
-    st.rerun()
+    with tab2:
+        st.session_state.trenutna_stranica = "nova_narudzba"
+        st.rerun()
 
-if col2.button("Spremi narudžbu", type="primary"):
-    if not st.session_state.narudzbe_proizvodi:
-        st.warning("Dodaj barem jedan proizvod!")
-    else:
-        with st.spinner("Spremanje narudžbe..."):
+elif st.session_state.trenutna_stranica == "nova_narudzba":
+    col_naslov, col_natrag = st.columns([5, 1])
+    with col_naslov:
+        st.title("Nova narudžba")
+
+    with col_natrag:
+        if st.button("← Natrag na pregled"):
+            st.session_state.narudzbe_proizvodi = []
+            st.session_state.trenutna_stranica = "pregled"
+            st.rerun()
+
+    col_lijevo, col_desno = st.columns([1, 2])
+
+    with col_lijevo:
+        st.markdown("**Korisnik**")
+        korisnik = st.selectbox("", ["Daniel Putar"], label_visibility="collapsed")
+        st.success(f"✓ {korisnik}")
+
+        st.markdown("**Skladište**")
+        skladiste = st.selectbox("", ["Osijek - Glavno skladište"], label_visibility="collapsed")
+        st.success(f"✓ {skladiste}")
+
+        st.markdown("**Tip klijenta**")
+        tip_klijenta = st.selectbox("", ["", "Doznaka", "Narudžba", "Uzorak"], label_visibility="collapsed")
+        if tip_klijenta:
+            st.success(f"✓ {tip_klijenta}")
+        else:
+            st.error("× Tip klijenta")
+
+        st.markdown("**Klijent**")
+        klijent = st.text_input("", placeholder="Upiši ime", label_visibility="collapsed")
+        if klijent:
+            st.success(f"✓ {klijent}")
+        else:
+            st.error("× Klijent")
+
+        st.markdown("**Odgovorna osoba**")
+        odgovorna = st.selectbox("", ["Nema"], label_visibility="collapsed")
+        st.success(f"✓ {odgovorna}")
+
+        st.markdown("**Datum kada je odobren nalog**")
+        datum = st.date_input("", datetime.today(), label_visibility="collapsed")
+
+        st.markdown("**Napomena**")
+        napomena = st.text_area("", height=100, label_visibility="collapsed")
+
+    with col_desno:
+        st.markdown("**Proizvodi**")
+
+        if st.session_state.narudzbe_proizvodi:
+            df = pd.DataFrame(st.session_state.narudzbe_proizvodi)
+            df["Ukupno"] = df["Kol."] * df["Cijena"]
+            st.dataframe(df, use_container_width=True, height=400)
+            ukupno = df["Ukupno"].sum()
+            st.markdown(f"**UKUPNO: {ukupno:,.2f} EUR + PDV**")
+        else:
+            st.info("Još nema proizvoda. Dodaj ih gumbom +")
+
+        if st.button("➕ Dodaj proizvod", type="primary"):
+            with st.form("dodaj_proizvod", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                sifra = col1.text_input("Šifra")
+                naziv = col2.text_input("Naziv proizvoda *")
+
+                col3, col4 = st.columns(2)
+                kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f")
+                cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f")
+
+                dobavljac = st.text_input("Dobavljač")
+
+                submitted = st.form_submit_button("Dodaj u narudžbu")
+                if submitted:
+                    if naziv and kol > 0:
+                        novi = {
+                            "Šifra": sifra,
+                            "Naziv": naziv,
+                            "Kol.": kol,
+                            "Cijena": cijena,
+                            "Ukupno": kol * cijena,
+                            "Dobavljač": dobavljac
+                        }
+                        st.session_state.narudzbe_proizvodi.append(novi)
+                        st.rerun()
+                    else:
+                        st.error("Naziv i količina su obavezni!")
+
+    col1, col2 = st.columns(2)
+    if col1.button("Odustani", type="secondary"):
+        st.session_state.narudzbe_proizvodi = []
+        st.session_state.trenutna_stranica = "pregled"
+        st.rerun()
+
+    if col2.button("Spremi narudžbu", type="primary"):
+        if not st.session_state.narudzbe_proizvodi:
+            st.warning("Dodaj barem jedan proizvod!")
+        else:
             for proizvod in st.session_state.narudzbe_proizvodi:
                 red = {
                     "datum": str(datum),
-                    "korisnik": klijent or korisnik,  # koristimo klijent ako je upisan
+                    "korisnik": klijent or korisnik,
                     "reprezentacija": skladiste,
                     "tip_klijenta": tip_klijenta,
                     "odgovorna_osoba": odgovorna,
@@ -156,7 +202,6 @@ if col2.button("Spremi narudžbu", type="primary"):
                     "kolicina": proizvod["Kol."],
                     "dobavljac": proizvod["Dobavljač"],
                     "cijena": proizvod["Ukupno"],
-                    "oznaci_za_narudzbu": False,
                     "napomena_za_nas": napomena,
                     "unio_korisnik": st.session_state.user.email,
                     "datum_vrijeme_narudzbe": datetime.now(TZ).isoformat(),
@@ -165,4 +210,5 @@ if col2.button("Spremi narudžbu", type="primary"):
 
             st.success("Narudžba spremljena! Svi proizvodi su dodani kao zasebni redovi.")
             st.session_state.narudzbe_proizvodi = []
+            st.session_state.trenutna_stranica = "pregled"
             st.rerun()
