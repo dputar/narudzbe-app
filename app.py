@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN – sa jedinstvenim key-evima
+#  LOGIN – jedinstveni key-evi
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
@@ -53,7 +53,7 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 else:
     # ────────────────────────────────────────────────
-    #  SIDEBAR – sa jedinstvenim key-evima
+    #  SIDEBAR – jedinstveni key-evi
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
