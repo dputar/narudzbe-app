@@ -53,7 +53,7 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 else:
     # ────────────────────────────────────────────────
-    #  SIDEBAR (vidljiv samo kad si prijavljen)
+    #  SIDEBAR
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI (glavna tablica)
+    #  PREGLED NARUDŽBI
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -107,6 +107,7 @@ else:
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
+                # Samo dozvoljeni stupci
                 allowed = [
                     "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
                     "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
@@ -123,7 +124,7 @@ else:
                     st.success("Promjene spremljene!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Greška: {e}")
+                    st.error(f"Greška pri spremanju: {e}")
 
             if col_b.button("🗑️ Obriši označene"):
                 to_delete = edited_df[edited_df["🗑️"] == True]
@@ -171,7 +172,7 @@ else:
                 st.error("× Tip klijenta")
 
             st.markdown("**Klijent**")
-            klijent = st.text_input("", placeholder="Upiši ime ili odaberi iz padajućeg", label_visibility="collapsed")
+            klijent = st.text_input("", placeholder="Upiši ime", label_visibility="collapsed")
             if klijent:
                 st.success(f"✓ {klijent}")
             else:
@@ -203,9 +204,6 @@ else:
                 st.info("Još nema proizvoda.")
 
             if st.button("➕ Dodaj proizvod", type="primary"):
-                st.session_state.show_dodaj_proizvod = True
-
-            if st.session_state.get("show_dodaj_proizvod", False):
                 with st.form("dodaj_proizvod", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra")
@@ -229,7 +227,6 @@ else:
                                 "Dobavljač": dobavljac
                             }
                             st.session_state.narudzbe_proizvodi.append(novi)
-                            st.session_state.show_dodaj_proizvod = False
                             st.rerun()
                         else:
                             st.error("Naziv i količina su obavezni!")
