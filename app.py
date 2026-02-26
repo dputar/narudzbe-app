@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN
+#  LOGIN – jedinstveni key-evi za svaki input
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
@@ -31,9 +31,9 @@ if "user" not in st.session_state or st.session_state.user is None:
     tab1, tab2 = st.tabs(["Prijava", "Registracija"])
 
     with tab1:
-        email = st.text_input("Email")
-        password = st.text_input("Lozinka", type="password")
-        if st.button("Prijavi se"):
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Lozinka", type="password", key="login_password")
+        if st.button("Prijavi se", key="login_button"):
             try:
                 res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state.user = res.user
@@ -43,9 +43,9 @@ if "user" not in st.session_state or st.session_state.user is None:
                 st.error(f"Greška: {e}")
 
     with tab2:
-        email = st.text_input("Email")
-        password = st.text_input("Lozinka", type="password")
-        if st.button("Registriraj se"):
+        email = st.text_input("Email", key="reg_email")
+        password = st.text_input("Lozinka", type="password", key="reg_password")
+        if st.button("Registriraj se", key="reg_button"):
             try:
                 supabase.auth.sign_up({"email": email, "password": password})
                 st.success("Registracija OK – prijavi se")
@@ -57,13 +57,13 @@ else:
     # ────────────────────────────────────────────────
 
     st.sidebar.title("Navigacija")
-    if st.sidebar.button("Pregled narudžbi"):
+    if st.sidebar.button("Pregled narudžbi", key="sidebar_pregled"):
         st.session_state.stranica = "pregled"
         st.rerun()
-    if st.sidebar.button("Nova narudžba"):
+    if st.sidebar.button("Nova narudžba", key="sidebar_nova"):
         st.session_state.stranica = "nova"
         st.rerun()
-    if st.sidebar.button("Odjavi se"):
+    if st.sidebar.button("Odjavi se", key="sidebar_odjava"):
         supabase.auth.sign_out()
         st.session_state.user = None
         st.session_state.stranica = "login"
@@ -76,7 +76,7 @@ else:
     if st.session_state.stranica == "pregled":
         st.title("Pregled narudžbi")
 
-        if st.button("🔄 Osvježi"):
+        if st.button("🔄 Osvježi", key="pregled_osvjezi"):
             st.rerun()
 
         response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
@@ -106,8 +106,7 @@ else:
             )
 
             col_a, col_b = st.columns([1, 4])
-            if col_a.button("💾 Spremi promjene", type="primary"):
-                # Samo dozvoljeni stupci (bez uuid i automatskih polja)
+            if col_a.button("💾 Spremi promjene", key="pregled_spremi", type="primary"):
                 allowed = [
                     "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
                     "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
@@ -124,9 +123,9 @@ else:
                     st.success("Promjene spremljene!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Greška pri spremanju: {str(e)}")
+                    st.error(f"Greška pri spremanju: {e}")
 
-            if col_b.button("🗑️ Obriši označene"):
+            if col_b.button("🗑️ Obriši označene", key="pregled_obrisi", type="secondary"):
                 to_delete = edited_df[edited_df["🗑️"] == True]
                 if not to_delete.empty:
                     for rid in to_delete["id"].tolist():
@@ -148,7 +147,7 @@ else:
             st.title("Nova narudžba")
 
         with col_natrag:
-            if st.button("← Natrag na pregled"):
+            if st.button("← Natrag na pregled", key="nova_natrag"):
                 st.session_state.narudzbe_proizvodi = []
                 st.session_state.stranica = "pregled"
                 st.rerun()
@@ -157,22 +156,22 @@ else:
 
         with col_lijevo:
             st.markdown("**Korisnik**")
-            korisnik = st.selectbox("", ["Daniel Putar"], label_visibility="collapsed")
+            korisnik = st.selectbox("", ["Daniel Putar"], key="nova_korisnik", label_visibility="collapsed")
             st.success(f"✓ {korisnik}")
 
             st.markdown("**Skladište**")
-            skladiste = st.selectbox("", ["Osijek - Glavno skladište"], label_visibility="collapsed")
+            skladiste = st.selectbox("", ["Osijek - Glavno skladište"], key="nova_skladiste", label_visibility="collapsed")
             st.success(f"✓ {skladiste}")
 
             st.markdown("**Tip klijenta**")
-            tip_klijenta = st.selectbox("", ["Doznaka", "Narudžba", "Uzorak", "Reprezentacija"], label_visibility="collapsed")
+            tip_klijenta = st.selectbox("", ["Doznaka", "Narudžba", "Uzorak", "Reprezentacija"], key="nova_tip_klijenta", label_visibility="collapsed")
             if tip_klijenta:
                 st.success(f"✓ {tip_klijenta}")
             else:
                 st.error("× Tip klijenta")
 
             st.markdown("**Klijent**")
-            klijent = st.text_input("", placeholder="Upiši ime", label_visibility="collapsed")
+            klijent = st.text_input("", placeholder="Upiši ime", key="nova_klijent", label_visibility="collapsed")
             if klijent:
                 st.success(f"✓ {klijent}")
             else:
@@ -180,16 +179,16 @@ else:
 
             st.markdown("**Odgovorna osoba**")
             odgovorna_lista = ["Nema", "Daniel Putar", "Druga osoba"]
-            odgovorna = st.selectbox("", odgovorna_lista, label_visibility="collapsed")
+            odgovorna = st.selectbox("", odgovorna_lista, key="nova_odgovorna_select", label_visibility="collapsed")
             if odgovorna == "Nema":
-                odgovorna = st.text_input("Slobodan unos odgovorne osobe", "")
+                odgovorna = st.text_input("Slobodan unos odgovorne osobe", key="nova_odgovorna_slobodno")
             st.success(f"✓ {odgovorna}")
 
             st.markdown("**Datum**")
-            datum = st.date_input("", datetime.today(), label_visibility="collapsed")
+            datum = st.date_input("", datetime.today(), key="nova_datum", label_visibility="collapsed")
 
             st.markdown("**Napomena**")
-            napomena = st.text_area("", height=100, label_visibility="collapsed")
+            napomena = st.text_area("", height=100, key="nova_napomena", label_visibility="collapsed")
 
         with col_desno:
             st.markdown("**Proizvodi**")
@@ -203,20 +202,23 @@ else:
             else:
                 st.info("Još nema proizvoda.")
 
-            if st.button("➕ Dodaj proizvod", type="primary"):
+            if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
+                st.session_state.show_dodaj_proizvod = True
+
+            if st.session_state.get("show_dodaj_proizvod", False):
                 with st.form("dodaj_proizvod", clear_on_submit=True):
                     col1, col2 = st.columns(2)
-                    sifra = col1.text_input("Šifra")
-                    naziv = col2.text_input("Naziv proizvoda *")
+                    sifra = col1.text_input("Šifra", key="dodaj_sifra")
+                    naziv = col2.text_input("Naziv proizvoda *", key="dodaj_naziv")
 
                     col3, col4 = st.columns(2)
-                    kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f")
-                    cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f")
+                    kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f", key="dodaj_kol")
+                    cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f", key="dodaj_cijena")
 
-                    dobavljac = st.text_input("Dobavljač")
+                    dobavljac = st.text_input("Dobavljač", key="dodaj_dobavljac")
 
-                    submitted = st.form_submit_button("Dodaj u narudžbu")
-                    if submitted:
+                    col_g, col_x = st.columns([1, 1])
+                    if col_g.button("Dodaj u narudžbu", key="dodaj_spremi"):
                         if naziv and kol > 0:
                             novi = {
                                 "Šifra": sifra,
@@ -227,9 +229,14 @@ else:
                                 "Dobavljač": dobavljac
                             }
                             st.session_state.narudzbe_proizvodi.append(novi)
+                            st.session_state.show_dodaj_proizvod = False
                             st.rerun()
                         else:
                             st.error("Naziv i količina su obavezni!")
+
+                    if col_x.button("Odustani", key="dodaj_odustani"):
+                        st.session_state.show_dodaj_proizvod = False
+                        st.rerun()
 
     # ────────────────────────────────────────────────
     #  SPREMI NARUDŽBU – svaki proizvod zaseban red
@@ -259,14 +266,9 @@ else:
                     "unio_korisnik": st.session_state.user.email,
                     "datum_vrijeme_narudzbe": datetime.now(TZ).isoformat(),
                 }
-                try:
-                    supabase.table("main_orders").insert(red).execute()
-                except Exception as e:
-                    st.error(f"Greška pri spremanju jednog reda: {str(e)}")
-                    break  # zaustavi petlju ako ima grešku
+                supabase.table("main_orders").insert(red).execute()
 
-            else:
-                st.success("Narudžba spremljena! Svi proizvodi su zasebni redovi.")
-                st.session_state.narudzbe_proizvodi = []
-                st.session_state.stranica = "pregled"
-                st.rerun()
+            st.success("Narudžba spremljena! Svi proizvodi su zasebni redovi.")
+            st.session_state.narudzbe_proizvodi = []
+            st.session_state.stranica = "pregled"
+            st.rerun()
