@@ -107,7 +107,7 @@ else:
 
             col_a, col_b = st.columns([1, 4])
             if col_a.button("💾 Spremi promjene", type="primary"):
-                # Samo dozvoljeni stupci
+                # Samo dozvoljeni stupci (bez uuid i automatskih polja)
                 allowed = [
                     "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
                     "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
