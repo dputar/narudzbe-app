@@ -23,7 +23,7 @@ if "stranica" not in st.session_state:
     st.session_state.stranica = "pregled"
 
 # ────────────────────────────────────────────────
-#  LOGIN – jedinstveni key-evi za svaki widget
+#  LOGIN – jedinstveni key-evi
 # ────────────────────────────────────────────────
 
 if "user" not in st.session_state or st.session_state.user is None:
@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI
+    #  PREGLED NARUDŽBI – koristimo st.dataframe umjesto data_editor (privremeno)
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -84,8 +84,6 @@ else:
 
         if not df.empty:
             df = df.fillna("")
-            df.insert(0, "🗑️", False)
-
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
@@ -93,47 +91,14 @@ else:
             # Ukloni nepotrebne stupce iz prikaza
             columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
 
-            edited_df = st.data_editor(
+            st.dataframe(
                 df[columns_to_show],
-                hide_index=True,
                 use_container_width=True,
-                height=750,
-                column_config={
-                    "🗑️": st.column_config.CheckboxColumn("🗑️", width=60),
-                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
-                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
-                }
+                height=750
             )
 
-            col_a, col_b = st.columns([1, 4])
-            if col_a.button("💾 Spremi promjene", key="pregled_spremi", type="primary"):
-                allowed = [
-                    "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
-                    "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
-                    "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
-                    "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
-                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja", "cijena"
-                ]
-                records = edited_df[allowed].copy()
-                records = records.where(pd.notnull(records), None)
-                records = records.to_dict(orient="records")
+            st.info("Za sada je pregled samo čitanje. Edit i brisanje dodajemo u sljedećem koraku.")
 
-                try:
-                    supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                    st.success("Promjene spremljene!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Greška pri spremanju: {e}")
-
-            if col_b.button("🗑️ Obriši označene", key="pregled_obrisi", type="secondary"):
-                to_delete = edited_df[edited_df["🗑️"] == True]
-                if not to_delete.empty:
-                    for rid in to_delete["id"].tolist():
-                        supabase.table("main_orders").delete().eq("id", rid).execute()
-                    st.success("Obrisano!")
-                    st.rerun()
-                else:
-                    st.warning("Nisi označio nijedan red.")
         else:
             st.info("Još nema narudžbi.")
 
@@ -203,9 +168,6 @@ else:
                 st.info("Još nema proizvoda.")
 
             if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
-                st.session_state.show_dodaj_proizvod = True
-
-            if st.session_state.get("show_dodaj_proizvod", False):
                 with st.form("dodaj_proizvod", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra", key="dodaj_sifra")
@@ -229,7 +191,6 @@ else:
                                 "Dobavljač": dobavljac
                             }
                             st.session_state.narudzbe_proizvodi.append(novi)
-                            st.session_state.show_dodaj_proizvod = False
                             st.rerun()
                         else:
                             st.error("Naziv i količina su obavezni!")
