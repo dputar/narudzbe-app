@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – koristimo st.dataframe umjesto data_editor (privremeno)
+    #  PREGLED NARUDŽBI – koristimo st.dataframe (bez data_editor za sada)
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -84,6 +84,7 @@ else:
 
         if not df.empty:
             df = df.fillna("")
+
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
@@ -98,7 +99,6 @@ else:
             )
 
             st.info("Za sada je pregled samo čitanje. Edit i brisanje dodajemo u sljedećem koraku.")
-
         else:
             st.info("Još nema narudžbi.")
 
