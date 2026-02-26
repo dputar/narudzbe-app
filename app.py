@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – čistimo duplicirane stupce
+    #  PREGLED NARUDŽBI – čistimo duplicirane stupce i prikazujemo samo dataframe
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -94,6 +94,9 @@ else:
 
             # Ukloni nepotrebne stupce iz prikaza
             columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
+
+            # Ako i dalje ima dupliciranih stupaca – ručno čistimo
+            df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
             st.dataframe(
                 df[columns_to_show],
