@@ -12,134 +12,111 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 TZ = ZoneInfo("Europe/Zagreb")
 
-# --- Sidebar navigation ---
+# SIDEBAR NAVIGACIJA
 st.sidebar.title("Navigacija")
 
-# Glavni izbornik
 page = st.sidebar.radio(
-    "Odaberi modul",
-    [
-        "🏠 Početna",
-        "📦 Narudžbe",
-        "📊 Izvještaji",
-        "⚙️ Administracija",
-        "📄 Dokumenti",
-        "🚪 Odjava"
-    ]
+    "Glavni modul",
+    ["🏠 Početna", "📦 Narudžbe", "📊 Izvještaji", "⚙️ Administracija", "📄 Dokumenti", "🚪 Odjava"]
 )
 
-# Podizbornici (koristimo st.expander za hijerarhiju)
+# Podizbornik za Narudžbe
 if page == "📦 Narudžbe":
     with st.sidebar.expander("Narudžbe", expanded=True):
         sub_page = st.radio(
             " ",
             ["Aktivne narudžbe", "Sve narudžbe", "Nova narudžba", "Pretraga narudžbi"]
         )
-elif page == "⚙️ Administracija":
-    with st.sidebar.expander("Administracija", expanded=True):
-        sub_page = st.radio(
-            " ",
-            ["Proizvodi", "Dobavljači", "Korisnici", "Šifarnici"]
-        )
 else:
-    sub_page = page  # za ostale stranice
+    sub_page = page
 
-# --- Glavni sadržaj (prema odabiru) ---
+# Glavni sadržaj
 if page == "🏠 Početna":
     st.title("Dobrodošli u sustav narudžbi")
-    st.write("Ovdje će biti dashboard, ključni pokazatelji, aktivne narudžbe itd.")
-    st.info("Ovo je početna stranica. Još nije implementirana.")
+    st.markdown("Ovdje će kasnije biti dashboard, aktivne narudžbe, statistika...")
+    st.info("Za sada je ovo placeholder stranica.")
 
-elif page == "📦 Narudžbe" or page == "📦 Narudžbe":
+elif page == "📦 Narudžbe":
+    # Dohvati sve narudžbe jednom
+    response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
+    df_all = pd.DataFrame(response.data or [])
+
     if sub_page == "Aktivne narudžbe":
         st.title("Aktivne narudžbe")
-        st.info("Ovdje će biti lista aktivnih (npr. ne-zaprimljenih) narudžbi.")
-        # Kasnije dodajemo filter + tablicu
+        if st.button("🔄 Osvježi"):
+            st.rerun()
+
+        df_active = df_all[df_all["oznaci_zaprimljeno"] != True].copy()
+        df_active = df_active.fillna("")
+        df_active.insert(0, "🗑️", False)
+
+        edited_active = st.data_editor(
+            df_active,
+            hide_index=True,
+            use_container_width=True,
+            height=750,
+            column_config={
+                "🗑️": st.column_config.CheckboxColumn("🗑️", width=50),
+                "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
+                "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
+            }
+        )
+
+        col1, col2 = st.columns([1, 4])
+        if col1.button("💾 Spremi promjene"):
+            # Čišćenje i spremanje (kao prije)
+            records = edited_active.drop(columns=["🗑️"]).to_dict(orient="records")
+            records = [{k: v for k, v in row.items() if v is not None} for row in records]
+            try:
+                supabase.table("main_orders").upsert(records, on_conflict="id").execute()
+                st.success("Spremljeno!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Greška: {e}")
+
+        if col2.button("🗑️ Obriši označene"):
+            to_del = edited_active[edited_active["🗑️"] == True]
+            if not to_del.empty:
+                for rid in to_del["id"].tolist():
+                    supabase.table("main_orders").delete().eq("id", rid).execute()
+                st.success("Obrisano!")
+                st.rerun()
+            else:
+                st.warning("Nisi označio nijedan red.")
 
     elif sub_page == "Sve narudžbe":
         st.title("Sve narudžbe")
         if st.button("🔄 Osvježi"):
             st.rerun()
-        response = supabase.table("main_orders").select("*").order("datum", desc=True).execute()
-        df = pd.DataFrame(response.data or [])
-        if not df.empty:
-            df = df.fillna("")
-            df.insert(0, "🗑️ Za brisanje", False)
-            edited_df = st.data_editor(
-                df,
-                hide_index=True,
-                use_container_width=True,
-                height=850,
-                column_config={
-                    "🗑️ Za brisanje": st.column_config.CheckboxColumn("🗑️", width=60),
-                    "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
-                    "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
-                }
-            )
-            col_a, col_b = st.columns([1, 4])
-            if col_a.button("💾 Spremi promjene", type="primary"):
-                allowed = [
-                    "id", "datum", "korisnik", "reprezentacija", "odgovorna_osoba",
-                    "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
-                    "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
-                    "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
-                    "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja"
-                ]
-                records = edited_df[allowed].copy()
-                records = records.where(pd.notnull(records), None).to_dict(orient="records")
-                try:
-                    supabase.table("main_orders").upsert(records, on_conflict="id").execute()
-                    st.success("Promjene spremljene!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Greška: {e}")
-            if col_b.button("🗑️ Obriši označene redove", type="secondary"):
-                to_delete = edited_df[edited_df["🗑️ Za brisanje"] == True]
-                if not to_delete.empty:
-                    for rid in to_delete["id"].tolist():
-                        supabase.table("main_orders").delete().eq("id", rid).execute()
-                    st.success(f"Obrisano {len(to_delete)} redova!")
-                    st.rerun()
-                else:
-                    st.warning("Nisi označio nijedan red.")
-        else:
-            st.info("Još nema narudžbi.")
+
+        df_all = df_all.fillna("")
+        df_all.insert(0, "🗑️", False)
+
+        edited_all = st.data_editor(
+            df_all,
+            hide_index=True,
+            use_container_width=True,
+            height=750,
+            column_config={
+                "🗑️": st.column_config.CheckboxColumn("🗑️", width=50),
+                "oznaci_za_narudzbu": st.column_config.CheckboxColumn("Za narudžbu", width=100),
+                "oznaci_zaprimljeno": st.column_config.CheckboxColumn("Zaprimljeno", width=100),
+            }
+        )
+
+        # Isto spremanje i brisanje kao gore (možeš kopirati kod)
 
     elif sub_page == "Nova narudžba":
         st.title("Nova narudžba")
-        # ... (možeš ovdje ostaviti staru formu za dodavanje narudžbe)
-        with st.form("new_order_form", clear_on_submit=True):
-            # (tvoja stara forma ovdje - kopiraj ako želiš)
-            st.write("Ovdje ide forma za novu narudžbu (možeš kopirati staru)")
+        st.info("Ovdje ide nova forma po slici – krećemo u sljedećem koraku")
 
     elif sub_page == "Pretraga narudžbi":
         st.title("Pretraga narudžbi")
-        st.info("Ovdje će biti pretraga po različitim kriterijima.")
-
-elif page == "📊 Izvještaji":
-    st.title("Izvještaji")
-    st.info("Ovdje će biti različiti izvještaji i statistike.")
+        st.info("Ovdje će biti filteri i tražilica – dodajemo kasnije")
 
 elif page == "⚙️ Administracija":
-    if sub_page == "Proizvodi":
-        st.title("Proizvodi")
-        st.info("Ovdje će biti lista proizvoda + dodavanje/uređivanje.")
-
-    elif sub_page == "Dobavljači":
-        st.title("Dobavljači")
-        st.info("Ovdje će biti lista dobavljača + dodavanje/uređivanje.")
-
-    elif sub_page == "Korisnici":
-        st.title("Korisnici")
-        st.info("Ovdje će biti upravljanje korisnicima.")
-
-    elif sub_page == "Šifarnici":
-        st.title("Šifarnici")
-        st.info("Ovdje će biti ostali šifarnici (npr. kategorije, statusi...).")
-
-elif page == "📄 Dokumenti":
-    st.title("Dokumenti")
-    st.info("Ovdje će biti generiranje i pregled dokumenata (PDF, Excel...).")
+    st.title("Administracija")
+    st.info("Ovdje će biti podizbornici za proizvode, dobavljače, korisnike...")
 
 elif page == "🚪 Odjava":
     supabase.auth.sign_out()
