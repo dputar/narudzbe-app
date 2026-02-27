@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – čistimo duplicirane stupce i prikazujemo samo dataframe
+    #  PREGLED NARUDŽBI – st.dataframe (stabilno, bez editiranja za sada)
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -85,7 +85,7 @@ else:
         if not df.empty:
             df = df.fillna("")
 
-            # Čišćenje dupliciranih naziva stupaca (uzimamo samo prvi pojavljeni)
+            # Čišćenje dupliciranih stupaca (uzimamo samo prvi pojavljeni)
             df = df.loc[:, ~df.columns.duplicated()]
 
             # Preimenuj reprezentacija u Skladište
@@ -95,7 +95,7 @@ else:
             # Ukloni nepotrebne stupce iz prikaza
             columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
 
-            # Ako i dalje ima dupliciranih stupaca – ručno čistimo
+            # Još jednom čistimo duplicirane (za svaki slučaj)
             df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
             st.dataframe(
@@ -174,6 +174,9 @@ else:
                 st.info("Još nema proizvoda.")
 
             if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
+                st.session_state.show_dodaj_proizvod = True
+
+            if st.session_state.get("show_dodaj_proizvod", False):
                 with st.form("dodaj_proizvod", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra", key="dodaj_sifra")
