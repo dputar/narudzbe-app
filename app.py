@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI
+    #  PREGLED NARUDŽBI – koristimo st.dataframe + eksplicitni stupci
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -85,18 +85,30 @@ else:
         if not df.empty:
             df = df.fillna("")
 
-            # Čišćenje dupliciranih stupaca
+            # Čišćenje dupliciranih stupaca (uzimamo samo prvi pojavljeni)
             df = df.loc[:, ~df.columns.duplicated()]
 
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
 
-            # Ukloni nepotrebne stupce
-            columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
+            # Još jednom čistimo duplicirane (za svaki slučaj)
+            df = df.loc[:, ~df.columns.duplicated(keep='first')]
+
+            # Eksplicitni stupci koje želimo prikazati (bez automatskih)
+            prikaz_stupci = [
+                "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
+                "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
+                "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
+                "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
+                "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja", "cijena"
+            ]
+
+            # Filtriramo samo one stupce koji postoje u df
+            postojeći_prikaz = [c for c in prikaz_stupci if c in df.columns]
 
             st.dataframe(
-                df[columns_to_show],
+                df[postojeći_prikaz],
                 use_container_width=True,
                 height=750
             )
@@ -171,9 +183,6 @@ else:
                 st.info("Još nema proizvoda.")
 
             if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
-                st.session_state.show_dodaj_proizvod = True
-
-            if st.session_state.get("show_dodaj_proizvod", False):
                 with st.form("dodaj_proizvod_form", clear_on_submit=False):
                     col1, col2 = st.columns(2)
                     sifra = col1.text_input("Šifra", key="dodaj_sifra")
