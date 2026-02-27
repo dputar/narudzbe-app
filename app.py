@@ -70,7 +70,7 @@ else:
         st.rerun()
 
     # ────────────────────────────────────────────────
-    #  PREGLED NARUDŽBI – koristimo st.dataframe + eksplicitni stupci
+    #  PREGLED NARUDŽBI – st.dataframe (stabilno)
     # ────────────────────────────────────────────────
 
     if st.session_state.stranica == "pregled":
@@ -85,30 +85,18 @@ else:
         if not df.empty:
             df = df.fillna("")
 
-            # Čišćenje dupliciranih stupaca (uzimamo samo prvi pojavljeni)
+            # Čišćenje dupliciranih stupaca
             df = df.loc[:, ~df.columns.duplicated()]
 
             # Preimenuj reprezentacija u Skladište
             if "reprezentacija" in df.columns:
                 df = df.rename(columns={"reprezentacija": "Skladište"})
 
-            # Još jednom čistimo duplicirane (za svaki slučaj)
-            df = df.loc[:, ~df.columns.duplicated(keep='first')]
-
-            # Eksplicitni stupci koje želimo prikazati (bez automatskih)
-            prikaz_stupci = [
-                "id", "datum", "korisnik", "Skladište", "odgovorna_osoba",
-                "sifra_proizvoda", "naziv_proizvoda", "kolicina", "dobavljac",
-                "oznaci_za_narudzbu", "broj_narudzbe", "oznaci_zaprimljeno",
-                "napomena_dobavljac", "napomena_za_nas", "unio_korisnik",
-                "datum_vrijeme_narudzbe", "datum_vrijeme_zaprimanja", "cijena"
-            ]
-
-            # Filtriramo samo one stupce koji postoje u df
-            postojeći_prikaz = [c for c in prikaz_stupci if c in df.columns]
+            # Ukloni nepotrebne stupce
+            columns_to_show = [c for c in df.columns if c not in ["created_at", "updated_at", "user_id"]]
 
             st.dataframe(
-                df[postojeći_prikaz],
+                df[columns_to_show],
                 use_container_width=True,
                 height=750
             )
@@ -173,6 +161,7 @@ else:
         with col_desno:
             st.markdown("**Proizvodi**")
 
+            # Prikaz trenutne liste proizvoda
             if st.session_state.narudzbe_proizvodi:
                 df = pd.DataFrame(st.session_state.narudzbe_proizvodi)
                 df["Ukupno"] = df["Kol."] * df["Cijena"]
@@ -182,37 +171,43 @@ else:
             else:
                 st.info("Još nema proizvoda.")
 
+            # Gumb za dodavanje proizvoda
             if st.button("➕ Dodaj proizvod", key="nova_dodaj_gumb", type="primary"):
-                with st.form("dodaj_proizvod_form", clear_on_submit=False):
-                    col1, col2 = st.columns(2)
-                    sifra = col1.text_input("Šifra", key="dodaj_sifra")
-                    naziv = col2.text_input("Naziv proizvoda *", key="dodaj_naziv")
+                st.session_state.show_dodaj_proizvod = True
 
-                    col3, col4 = st.columns(2)
-                    kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f", key="dodaj_kol")
-                    cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f", key="dodaj_cijena")
+            # Forma za dodavanje proizvoda – ostaje otvorena
+            if st.session_state.get("show_dodaj_proizvod", False):
+                st.markdown("**Dodaj proizvod**")
+                col1, col2 = st.columns(2)
+                sifra = col1.text_input("Šifra", key="dodaj_sifra")
+                naziv = col2.text_input("Naziv proizvoda *", key="dodaj_naziv")
 
-                    dobavljac = st.text_input("Dobavljač", key="dodaj_dobavljac")
+                col3, col4 = st.columns(2)
+                kol = col3.number_input("Količina *", min_value=0.01, step=0.01, format="%.2f", key="dodaj_kol")
+                cijena = col4.number_input("Cijena po komadu", min_value=0.0, step=0.01, format="%.2f", key="dodaj_cijena")
 
-                    col_g, col_x = st.columns([1, 1])
-                    if col_g.button("Dodaj u narudžbu", key="dodaj_spremi"):
-                        if naziv and kol > 0:
-                            novi = {
-                                "Šifra": sifra,
-                                "Naziv": naziv,
-                                "Kol.": kol,
-                                "Cijena": cijena,
-                                "Ukupno": kol * cijena,
-                                "Dobavljač": dobavljac
-                            }
-                            st.session_state.narudzbe_proizvodi.append(novi)
-                            st.rerun()
-                        else:
-                            st.error("Naziv i količina su obavezni!")
+                dobavljac = st.text_input("Dobavljač", key="dodaj_dobavljac")
 
-                    if col_x.button("Odustani", key="dodaj_odustani"):
-                        st.session_state.show_dodaj_proizvod = False
+                col_g, col_x = st.columns([1, 1])
+                if col_g.button("Dodaj u narudžbu", key="dodaj_spremi"):
+                    if naziv and kol > 0:
+                        novi = {
+                            "Šifra": sifra,
+                            "Naziv": naziv,
+                            "Kol.": kol,
+                            "Cijena": cijena,
+                            "Ukupno": kol * cijena,
+                            "Dobavljač": dobavljac
+                        }
+                        st.session_state.narudzbe_proizvodi.append(novi)
+                        st.success("Proizvod dodan!")
                         st.rerun()
+                    else:
+                        st.error("Naziv i količina su obavezni!")
+
+                if col_x.button("Zatvori formu", key="dodaj_zatvori"):
+                    st.session_state.show_dodaj_proizvod = False
+                    st.rerun()
 
     # ────────────────────────────────────────────────
     #  SPREMI NARUDŽBU – svaki proizvod zaseban red
